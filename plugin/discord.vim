@@ -1,5 +1,5 @@
 if !has('nvim')
-  echoerr 'This plugin requires Neovim'
+"  echoerr 'This plugin requires Neovim'
   finish
 endif
 if !has('timers')
