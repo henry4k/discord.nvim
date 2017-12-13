@@ -85,8 +85,8 @@ class DiscordPlugin(object):
         activity = {}
         activity["details"] = "Editing {}".format(basename(filename))
         activity["assets"] = {
-            "large_text": "The One True Editor",
-            "large_image": "neovim"
+            "large_text": "The ubiquitous text editor",
+            "large_image": "vim"
         }
         activity["timestamps"] = {"start": time()}
         if ft:
