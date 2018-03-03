@@ -12,7 +12,7 @@ if !has('python3')
 endif
 
 if !exists('g:discord_clientid')
-  let g:discord_clientid = '383069395896762369'
+  let g:discord_clientid = '418825201065918466'
 endif
 if !exists('g:discord_reconnect_threshold')
   let g:discord_reconnect_threshold = 5

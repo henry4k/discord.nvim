@@ -87,19 +87,20 @@ class DiscordPlugin(object):
 
     def _update_presence(self, filename, ft, workspace):
         activity = {}
-        activity["details"] = "Editing {}".format(basename(filename))
-        activity["assets"] = {
-            "large_text": "The ubiquitous text editor",
-            "large_image": "vim"
-        }
+        activity["details"] = "{}".format(basename(filename))
+        #activity["assets"] = {
+        #    "large_text": "",
+        #    "large_image": ""
+        #}
         activity["timestamps"] = {"start": time()}
-        if ft:
-            if len(ft) == 1:
-                ft = "lang_{}".format(ft)
-            activity["assets"]["small_text"] = ft
-            activity["assets"]["small_image"] = ft
+        #if ft:
+        #    self.log_debug(repr(ft))
+        #    if len(ft) == 1:
+        #        ft = "lang_{}".format(ft)
+        #    activity["assets"]["small_text"] = ft
+        #    activity["assets"]["small_image"] = ft
         if workspace:
-            activity["state"] = "Working on {}".format(workspace)
+            activity["state"] = "{}".format(workspace)
         self.discord.set_activity(activity, self.vim.call("getpid"))
 
     def get_current_buf_var(self, var):
