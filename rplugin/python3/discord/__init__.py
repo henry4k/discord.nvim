@@ -1,13 +1,13 @@
-from .discord_rpc import Discord, NoDiscordClientError, ReconnectError
-from .pidlock import PidLock, get_tempdir
-from contextlib import contextmanager
-from os.path import join, basename
-from time import time
 import atexit
+import re
+from contextlib import contextmanager
+from os.path import basename, join
+from time import time
+
 import neovim
 
-
-FT_BLACKLIST = ["help", "nerdtree"]
+from .discord_rpc import Discord, NoDiscordClientError, ReconnectError
+from .pidlock import PidLock, get_tempdir
 
 
 @contextmanager
@@ -26,7 +26,12 @@ def handle_lock(plugin):
 class DiscordPlugin(object):
     def __init__(self, vim):
         self.vim = vim
+        self.activate = self.vim.vars.get("discord_activate_on_enter")
+        self.activity = {}
         self.discord = None
+        self.blacklist = []
+        self.fts_blacklist = []
+        self.fts_whitelist = []
         # Ratelimits
         self.lock = None
         self.locked = False
@@ -35,12 +40,29 @@ class DiscordPlugin(object):
         self.lasttimestamp = time()
         self.cbtimer = None
 
+    @neovim.autocmd("VimEnter", "*")
+    def on_vimenter(self):
+        self.blacklist = [
+            re.compile(x) for x in self.vim.vars.get("discord_blacklist")
+        ]
+        self.fts_blacklist = self.vim.vars.get("discord_fts_blacklist")
+        self.fts_whitelist = self.vim.vars.get("discord_fts_whitelist")
+
     @neovim.autocmd("BufEnter", "*")
     def on_bufenter(self):
-        self.update_presence()
+        if self.activate != 0:
+            self.update_presence()
 
     @neovim.command("DiscordUpdatePresence")
     def update_presence(self):
+        if self.activate == 0:
+            self.activate = 1
+        if not self.activity:
+            self.activity["assets"] = {
+                "large_text": "( ಠ ͜ʖರೃ)⊃🍸",
+                "large_image": "vim"
+            }
+            self.activity["timestamps"] = {"start": time()}
         if not self.lock:
             self.lock = PidLock(join(get_tempdir(), "dnvim_lock"))
         if self.locked:
@@ -55,11 +77,7 @@ class DiscordPlugin(object):
                 return
             self.discord = Discord(client_id, reconnect_threshold)
             with handle_lock(self):
-                try:
-                    self.discord.connect()
-                except:
-                    self.log_debug("connection failed")
-                    return
+                self.discord.connect()
                 self.log_debug("init")
             if self.locked:
                 return
@@ -70,38 +88,34 @@ class DiscordPlugin(object):
         filename = self.vim.current.buffer.name
         if not filename:
             return
+        self.log_debug('filename: {}'.format(filename))
+        if any(it.match(filename) for it in self.blacklist):
+            return
         ft = self.get_current_buf_var("&ft")
-        if ft in FT_BLACKLIST:
+        self.log_debug('ft: {}'.format(ft))
+        if ft in self.fts_blacklist or ft not in self.fts_whitelist:
             return
         workspace = self.get_workspace()
         if self.is_ratelimited(filename):
             if self.cbtimer:
                 self.vim.call("timer_stop", self.cbtimer)
-            self.cbtimer = self.vim.call(
-                "timer_start", 15, "_DiscordRunScheduled"
-            )
+            self.cbtimer = self.vim.call("timer_start", 15,
+                                         "_DiscordRunScheduled")
             return
         self.log_debug("update presence")
         with handle_lock(self):
             self._update_presence(filename, ft, workspace)
 
     def _update_presence(self, filename, ft, workspace):
-        activity = {}
-        activity["details"] = "{}".format(basename(filename))
-        #activity["assets"] = {
-        #    "large_text": "",
-        #    "large_image": ""
-        #}
-        activity["timestamps"] = {"start": time()}
+        self.activity["details"] = basename(filename)
         #if ft:
-        #    self.log_debug(repr(ft))
         #    if len(ft) == 1:
         #        ft = "lang_{}".format(ft)
-        #    activity["assets"]["small_text"] = ft
-        #    activity["assets"]["small_image"] = ft
+        #    self.activity["assets"]["small_text"] = ft.title()
+        #    self.activity["assets"]["small_image"] = ft
         if workspace:
-            activity["state"] = "{}".format(workspace)
-        self.discord.set_activity(activity, self.vim.call("getpid"))
+            self.activity["state"] = workspace
+        self.discord.set_activity(self.activity, self.vim.call("getpid"))
 
     def get_current_buf_var(self, var):
         return self.vim.call("getbufvar", self.vim.current.buffer.number, var)
